@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 ./src/generated.ts
+.npmrc
 
 # Editor directories and files
 .vscode/*

@@ -11,12 +11,25 @@ import {
   readContract,
   Provider,
   goerli,
+  writeContract,
+  PrepareWriteContractResult,
+  PrepareWriteContractConfig,
+  waitForTransaction,
+  watchSigner,
+  Signer,
+  FetchSignerResult,
+  sendTransaction,
+  WriteContractPreparedArgs,
+  Address,
 } from "@wagmi/core";
 import { create } from "zustand";
 import { publicProvider } from "@wagmi/core/providers/public";
 import { MetaMaskConnector } from "@wagmi/core/connectors/metaMask";
-import { readCounter } from "../generated";
-import { BigNumber as EthersBigNumber } from "ethers";
+import { counterABI, readCounter } from "../generated";
+import { BigNumber as EthersBigNumber, PopulatedTransaction } from "ethers";
+import { writeCounter } from "../generated";
+import { prepareWriteCounter } from "../generated";
+import { CounterService } from "../web3/services/counterService";
 
 type BigNumber = EthersBigNumber;
 
@@ -28,9 +41,25 @@ const { chains, provider, webSocketProvider } = configureChains(
 
 type Chain = GetNetworkResult["chain"];
 
+const initCounterService = () => {
+  return new CounterService();
+};
+
+type TXConfig = Parameters<typeof writeContract>;
+type PrepareTX = () => Promise<WriteContractPreparedArgs<typeof counterABI, string>>;
+
+type PopulatedWagmiTX = Omit<PopulatedTransaction, "to" | "gasLimit"> & {
+  to: Address;
+  gasLimit: NonNullable<PopulatedTransaction["gasLimit"]>;
+};
+
+type PrepareTxBody = PrepareWriteContractConfig | PopulatedWagmiTX;
+
 interface Web3State {
   loading: boolean;
   counterNumber?: BigNumber;
+  signer: FetchSignerResult<Signer>;
+  setSigner: (signer: FetchSignerResult<Signer>) => void;
   account?: GetAccountResult<Provider>;
   setAccount: (account: GetAccountResult<Provider>) => void;
   connect: () => Promise<void>;
@@ -39,6 +68,12 @@ interface Web3State {
   setChain: (chain: Chain) => Promise<void>;
   getCurrentNumber: () => Promise<void>;
   activeChain?: Chain;
+  counterService: CounterService;
+  increment: () => Promise<void>;
+  incrementEnso: () => Promise<void>;
+  // SIMPLE execute tx
+  //TODO: how to make generic to either WriteContractPreparedArgs or PopulatedWagmiTX
+  executeTx: (params: { prepareTX: () => Promise<PrepareTxBody> }) => void;
 }
 
 const client = createClient({
@@ -49,10 +84,14 @@ const client = createClient({
 });
 
 export const useWeb3Store = create<Web3State>()((set, get) => ({
-  client,
+  signer: null,
   loading: false,
+  counterService: initCounterService(),
   setAccount: (account) => {
     set({ account });
+  },
+  setSigner: (signer) => {
+    set({ signer });
   },
   connect: async () => {
     await get().disconnect();
@@ -77,18 +116,44 @@ export const useWeb3Store = create<Web3State>()((set, get) => ({
   },
   getCurrentNumber: async () => {
     set({ loading: true });
-    const currentNumber = await readCounter({
-      functionName: "getCurrentNumber",
-      address: COUNTER_ADDRESS,
-    });
+    const currentNumber = await get().counterService.getCounterNumber();
     set({
       loading: false,
       counterNumber: currentNumber,
     });
   },
+  increment: async () => {
+    get().executeTx({
+      // TODO: fix types
+      prepareTX: get().counterService.increment,
+    });
+  },
+  incrementEnso: async () => {
+    const signer = get().signer;
+    if (signer != null) {
+      const address = await signer.getAddress();
+    }
+  },
+  executeTx: async ({ prepareTX }) => {
+    const config = await prepareTX();
+    console.log(config)
+    if (isContractConfig(config)) {
+      writeContract(config);
+    } else {
+      console.log(config, 'txs')
+    }
+  },
 }));
 
+function isContractConfig(
+  body: PrepareTxBody
+  // TODO: make it better with generics
+): body is WriteContractPreparedArgs<typeof counterABI, string> {
+  return (body as PrepareWriteContractConfig).abi !== undefined;
+}
+
 watchAccount((account) => {
+  console.log(account);
   useWeb3Store.getState().setAccount(account);
 });
 
@@ -96,5 +161,8 @@ watchNetwork((network) => {
   useWeb3Store.getState().setChain(network.chain);
 });
 
-export const COUNTER_ADDRESS = "0xfC5F404bEC816C6DC4F1ef4370C96bc5d0c561A9";
+watchSigner({}, (signer) => {
+  useWeb3Store.getState().setSigner(signer);
+});
+
 export const DESIRED_CHAIN_ID = 5;

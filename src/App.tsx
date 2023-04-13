@@ -13,6 +13,8 @@ function App() {
   const connect = useWeb3Store((state) => state.connect);
   const disconnect = useWeb3Store((state) => state.disconnect);
   const switchChain = useWeb3Store((state) => state.switchChain);
+  const increment = useWeb3Store((state) => state.increment);
+  const incrementEnso = useWeb3Store((state) => state.incrementEnso);
 
   const getCounterNumber = useWeb3Store((state) => state.getCurrentNumber);
   const counterNumber = useWeb3Store((state) => state.counterNumber);
@@ -24,7 +26,9 @@ function App() {
 
   return (
     <div className="App">
-      <div>Counter {counterLoading ? "loading" : counterNumber?.toString()}</div>
+      <div>
+        Counter {counterLoading ? "loading" : counterNumber?.toString()}
+      </div>
       <div>
         <a href="https://vitejs.dev" target="_blank">
           <img src={viteLogo} className="logo" alt="Vite logo" />
@@ -38,6 +42,8 @@ function App() {
         <button onClick={() => setCount((count) => count + 1)}>
           count is {count}
         </button>
+        <button onClick={increment}>Increment</button>
+        <button onClick={incrementEnso}>Increment enso</button>
         <p>Connected account {account?.address}</p>
         <p>Active chain {chain?.id}</p>
         <button onClick={connect}>Connect</button>

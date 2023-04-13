@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ensofinance/shortcuts-sdk": "^0.11.0",
     "@wagmi/core": "^0.10.9",
     "abitype": "^0.7.1",
     "ethers": "^5.7.2",
